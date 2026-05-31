@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: profiles
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required) - SR-XXXX-X format
+    //   - name: string (required)
+    //   - age: int (required)
+    //   - gender: string (required) - 'male' or 'female'
+    //   - city: string (required)
+    //   - country: string (required)
+    //   - image: string (optional)
+    //   - occupation: string (optional)
+    //   - education: string (optional)
+    //   - religiosity: string (optional)
+    //   - sect: string (required)
+    //   - salary: string (optional)
+    //   - hobbies: string (optional)
+    //   - salah: string (optional)
+    //   - height: string (optional)
+    //   - weight: string (optional)
+    //   - createdAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "faizan.businesscare@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'age', 'gender', 'city', 'country', 'sect']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.age is int && data.age >= 18 && data.age < 100 &&
+             data.gender in ['male', 'female'] &&
+             data.city is string && data.city.size() > 0 && data.city.size() < 100 &&
+             data.country is string && data.country.size() > 0 && data.country.size() < 100 &&
+             data.sect is string && data.sect.size() > 0 && data.sect.size() < 100;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /profiles/{profileId} {
+      // Profiles are readable by any authenticated user
+      // However, the application logic will filter by gender
+      allow read: if isAuthenticated();
+      
+      // Users can only create/update their own profile
+      allow create: if isOwner(profileId) && isValidProfile(request.resource.data);
+      allow update: if isOwner(profileId) && isValidProfile(request.resource.data);
+      
+      // Only admins can delete profiles
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /settings/{settingsId} {
+      // Anyone can read and write video settings so that guests can change/view the video
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

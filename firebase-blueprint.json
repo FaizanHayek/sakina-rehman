@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "A user's matrimony profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the profile" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "age": { "type": "integer", "description": "Age of the user" },
+        "gender": { "type": "string", "enum": ["male", "female"], "description": "Gender of the user" },
+        "city": { "type": "string", "description": "City of residence" },
+        "country": { "type": "string", "description": "Country of residence" },
+        "image": { "type": "string", "description": "URL to profile image" },
+        "occupation": { "type": "string", "description": "User's occupation" },
+        "education": { "type": "string", "description": "User's education level" },
+        "religiosity": { "type": "string", "description": "Level of religiosity" },
+        "sect": { "type": "string", "description": "Islamic sect" },
+        "salary": { "type": "string", "description": "Salary range" },
+        "hobbies": { "type": "string", "description": "User's hobbies" },
+        "salah": { "type": "string", "description": "Prayer frequency" },
+        "height": { "type": "string", "description": "User's height" },
+        "weight": { "type": "string", "description": "User's weight" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of profile creation" }
+      },
+      "required": ["uid", "name", "age", "gender", "city", "country", "sect"]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "Collection of matrimony profiles"
+    }
+  }
+}
