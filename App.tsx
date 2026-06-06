@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ProfileForm from './components/ProfileForm';
 import FilterSection from './components/FilterSection';
+import MyProfileView from './components/MyProfileView';
 import ProfileCard from './components/ProfileCard';
 import ProfileDetails from './components/ProfileDetails';
 import HowItWorksModal from './components/HowItWorksModal';
@@ -67,7 +68,7 @@ const getYouTubeId = (url: string): string | null => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-type ViewState = 'landing' | 'register' | 'browse' | 'favorites';
+type ViewState = 'landing' | 'register' | 'browse' | 'favorites' | 'profile';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('landing');
@@ -78,6 +79,17 @@ const App: React.FC = () => {
   const [mutualLikeIds, setMutualLikeIds] = useState<string[]>([]);
   const [userPrefs, setUserPrefs] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Filter States
+  const [isFilterVanished, setIsFilterVanished] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState({
+    ageRange: '',
+    sect: '',
+    height: '',
+    location: '',
+    education: '',
+    religiosity: '',
+  });
   const [profiles, setProfiles] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -382,8 +394,63 @@ const App: React.FC = () => {
   };
 
   // Strictly sort: High compatibility (>50) at top, Low (<=50) at bottom
-  const getSortedProfiles = (profiles: any[]) => {
-    return [...profiles]
+  const getSortedProfiles = (profilesArr: any[]) => {
+    let filtered = [...profilesArr];
+    
+    if (appliedFilters.ageRange) {
+      filtered = filtered.filter(p => {
+        const age = parseInt(p.age) || 0;
+        if (appliedFilters.ageRange === '18-25') return age >= 18 && age <= 25;
+        if (appliedFilters.ageRange === '26-35') return age >= 26 && age <= 35;
+        if (appliedFilters.ageRange === '36-45') return age >= 36 && age <= 45;
+        if (appliedFilters.ageRange === '45+') return age >= 45;
+        return true;
+      });
+    }
+    if (appliedFilters.sect) {
+      filtered = filtered.filter(p => {
+        const sectVal = String(p.sect || '').toLowerCase();
+        const filterVal = String(appliedFilters.sect).toLowerCase();
+        return sectVal === filterVal;
+      });
+    }
+    if (appliedFilters.height) {
+      filtered = filtered.filter(p => {
+        const heightVal = parseInt(p.height) || 0;
+        if (appliedFilters.height === '<160cm') return heightVal < 160;
+        if (appliedFilters.height === '160-175cm') return heightVal >= 160 && heightVal <= 175;
+        if (appliedFilters.height === '175cm+') return heightVal > 175;
+        return true;
+      });
+    }
+    if (appliedFilters.location) {
+      filtered = filtered.filter(p => {
+        const filterVal = String(appliedFilters.location).toLowerCase();
+        const countryVal = String(p.country || 'India').toLowerCase();
+        if (filterVal.includes('local') || filterVal.includes('india')) {
+          return countryVal === 'india';
+        } else if (filterVal.includes('international')) {
+          return countryVal !== 'india';
+        }
+        return true;
+      });
+    }
+    if (appliedFilters.education) {
+      filtered = filtered.filter(p => {
+        const eduVal = String(p.education || '').toLowerCase();
+        const filterVal = String(appliedFilters.education).toLowerCase();
+        return eduVal.includes(filterVal);
+      });
+    }
+    if (appliedFilters.religiosity) {
+      filtered = filtered.filter(p => {
+        const relVal = String(p.religiosity || '').toLowerCase();
+        const filterVal = String(appliedFilters.religiosity).toLowerCase();
+        return relVal.includes(filterVal);
+      });
+    }
+
+    return filtered
       .map(p => ({ ...p, compatibility: getCompatibilityScore(p) }))
       .sort((a, b) => {
         const aHigh = a.compatibility > 50;
@@ -791,29 +858,87 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <header className="fixed top-0 left-0 w-full z-50 p-4 md:p-8 flex justify-between items-center pointer-events-none">
+      <header className="fixed top-0 left-0 w-full z-50 p-4 md:p-8 flex justify-between items-start pointer-events-none">
         <div className="pointer-events-auto bg-white/70 backdrop-blur-xl px-6 md:px-8 py-2 md:py-3 rounded-full border border-[#c5a059]/20 shadow-lg cursor-pointer hover:shadow-xl transition-all" onClick={() => setView('landing')}>
           <span className="cinzel-decorative font-black text-sm md:text-xl text-[#064e3b] tracking-[0.1em] uppercase">Sakina Rehman</span>
         </div>
-        {(view === 'browse' || view === 'favorites' || view === 'register') && (
-          <div className="pointer-events-auto flex gap-4 md:gap-6">
-             <button 
-              onClick={() => setView('browse')}
-              className={`p-4 md:p-5 rounded-full border shadow-xl transition-all active:scale-95 flex items-center gap-3 ${view === 'browse' ? 'bg-[#064e3b] text-white border-[#064e3b]' : 'bg-white/90 text-[#3d5a45] border-[#c5a059]/30'}`}
-            >
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <span className="hidden md:inline font-black uppercase text-[12px] tracking-[0.2em]">Browse</span>
-            </button>
-            <button 
-              onClick={() => setView('favorites')}
-              className={`p-4 md:p-5 rounded-full border shadow-xl transition-all active:scale-95 flex items-center gap-3 ${view === 'favorites' ? 'bg-[#c5a059] text-white border-[#c5a059]' : 'bg-white/90 text-[#3d5a45] border-[#c5a059]/30'}`}
-            >
-              <div className="relative">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                {likedProfileIds.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-md border border-white/20">{likedProfileIds.length}</span>}
-              </div>
-              <span className="hidden md:inline font-black uppercase text-[12px] tracking-[0.2em]">Favorites</span>
-            </button>
+        {(view === 'browse' || view === 'favorites' || view === 'register' || view === 'profile') && (
+          <div className="pointer-events-auto flex flex-col items-end gap-2 md:gap-3">
+            {/* Top row: Modify Filters & Profile Button at same level as Sakina Rehman */}
+            <div className="flex items-center gap-2 md:gap-3">
+              <button 
+                onClick={() => {
+                  setView('browse');
+                  setIsFilterVanished(prev => !prev);
+                }}
+                className={`py-2 px-3.5 md:py-2.5 md:px-5 rounded-full border shadow-lg transition-all active:scale-95 flex items-center justify-center text-[9px] md:text-[10px] font-black uppercase tracking-[0.15em] md:tracking-[0.22em] ${view === 'browse' && !isFilterVanished ? 'bg-[#c5a059] text-white border-[#c5a059]' : 'bg-white/95 text-[#3d5a45] border-[#c5a059]/30 hover:bg-white bg-white'}`}
+              >
+                Modify Filters
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (!userProfile) {
+                    // Pre-set default user profile if none exists so they have something static to view and edit
+                    const demoProfile = {
+                      gender: 'male',
+                      fullName: 'New Candidate',
+                      age: '24',
+                      city: 'Mumbai',
+                      state: 'Maharashtra',
+                      country: 'India',
+                      height: '175',
+                      weight: '70',
+                      sect: 'Sunni',
+                      maslak: 'Deobandi',
+                      religiosity: 'Moderate',
+                      salah: 5,
+                      occupation: 'Software Professional',
+                      education: 'Bachelors',
+                      salary: 50000,
+                      hobbies: ['Reading', 'Travel'],
+                    };
+                    setUserProfile(demoProfile);
+                  }
+                  setView('profile');
+                }}
+                className={`w-9 h-9 md:w-11 md:h-11 rounded-full border shadow-lg transition-all active:scale-95 flex items-center justify-center shrink-0 ${view === 'profile' ? 'bg-[#3d5a45] border-[#3d5a45]' : 'bg-white/95 border-[#c5a059]/30 hover:bg-white bg-white'}`}
+                title="Profile"
+              >
+                <div className="w-7 h-7 md:w-9 md:h-9 rounded-full overflow-hidden bg-[#e8e2d6] border border-[#c5a059]/10 shrink-0">
+                  {userProfile?.image ? (
+                    <img src={userProfile.image} alt="Self" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-[#c5a059] flex items-center justify-center text-[10px] md:text-xs text-white font-bold">👤</div>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Bottom row: Search & Favorites option just below the profile image, smaller */}
+            <div className="flex gap-1.5 mr-1 md:mr-1.5">
+              <button 
+                onClick={() => setView('browse')}
+                className={`w-7 h-7 md:w-8 md:h-8 rounded-full border shadow-md transition-all active:scale-95 flex items-center justify-center ${view === 'browse' ? 'bg-[#064e3b] text-white border-[#064e3b]' : 'bg-white/90 text-[#3d5a45] border-[#c5a059]/30 hover:bg-white bg-white'}`}
+                title="Browse / Search"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
+              <button 
+                onClick={() => setView('favorites')}
+                className={`w-7 h-7 md:w-8 md:h-8 rounded-full border shadow-md transition-all active:scale-95 flex items-center justify-center ${view === 'favorites' ? 'bg-[#c5a059] text-white border-[#c5a059]' : 'bg-white/90 text-[#3d5a45] border-[#c5a059]/30 hover:bg-white bg-white'}`}
+                title="Favorites"
+              >
+                <div className="relative">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                  {likedProfileIds.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[7px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-bold shadow-sm border border-white/20 scale-90">
+                      {likedProfileIds.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -827,7 +952,26 @@ const App: React.FC = () => {
         )}
         {view === 'browse' && (
           <div className="pt-32 md:pt-40 pb-32 px-6 max-w-[90rem] mx-auto w-full">
-            <FilterSection />
+            <FilterSection 
+              appliedFilters={appliedFilters}
+              onApply={(filters) => {
+                setAppliedFilters(filters);
+                setIsFilterVanished(true);
+              }}
+              onClear={() => {
+                setAppliedFilters({
+                  ageRange: '',
+                  sect: '',
+                  height: '',
+                  location: '',
+                  education: '',
+                  religiosity: '',
+                });
+                setIsFilterVanished(false);
+              }}
+              isVanished={isFilterVanished}
+              onToggleVanished={() => setIsFilterVanished(!isFilterVanished)}
+            />
             <div className="mb-10 flex items-center gap-4">
               <span className="h-px flex-grow bg-[#e8e2d6]"></span>
               <h2 className="serif-heading italic text-2xl text-[#064e3b]">Potential Nikah Matches</h2>
@@ -845,6 +989,29 @@ const App: React.FC = () => {
                 />
               ))}
             </div>
+          </div>
+        )}
+        {view === 'profile' && (
+          <div className="pt-32 md:pt-40 pb-32 px-6 max-w-[90rem] mx-auto w-full">
+            <MyProfileView 
+              userProfile={userProfile} 
+              userPrefs={userPrefs}
+              onBack={() => setView('browse')}
+              onUpdate={async (newProfile, newPrefs) => {
+                localStorage.setItem('sakina_sandbox_profile', JSON.stringify(newProfile));
+                localStorage.setItem('sakina_sandbox_prefs', JSON.stringify(newPrefs));
+                setUserProfile(newProfile);
+                setUserPrefs(newPrefs);
+                
+                if (user && !user.isLocalFallback) {
+                  try {
+                    await setDoc(doc(db, 'profiles', user.uid), newProfile);
+                  } catch (e) {
+                    console.error("Firestore write failed:", e);
+                  }
+                }
+              }}
+            />
           </div>
         )}
         {view === 'favorites' && (

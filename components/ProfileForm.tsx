@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { auth } from '../firebase';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
 interface ProfileFormProps {
   onComplete: (formData: any, prefData: any) => void;
@@ -68,7 +70,107 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
     prefSalary: 20000,
   });
 
+  const [maleImage] = useState("https://media.gettyimages.com/id/2151519858/photo/arab-man-in-traditional-arabic-clothing-enjoying-time-on-the-dubai-desert.jpg?s=612x612&w=0&k=20&c=XHAJkLJ1PjKUPheKnBXcxVI_hJ2uSpqYN0WmSbG-uaQ=");
+  const [femaleImage] = useState("https://images.squarespace-cdn.com/content/v1/57db6af7f7e0abec41695d80/1474257405598-UKK2KZE1G9YUC0557EA7/image-asset.jpeg?format=1500w");
+
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null, null]);
+
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [hasDraft, setHasDraft] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      console.error("Google sign-in error", err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setAuthError(err.message || "Failed to sign in with Google.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Sign out error", err);
+    }
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('nikah_profile_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.formData && (parsed.formData.fullName || parsed.images?.some((img: string | null) => img !== null))) {
+          setHasDraft(true);
+        }
+      } catch (err) {
+        console.error("Error parsing saved draft", err);
+      }
+    }
+  }, []);
+
+  const handleResumeDraft = () => {
+    const saved = localStorage.getItem('nikah_profile_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.formData) setFormData(parsed.formData);
+        if (parsed.prefData) setPrefData(parsed.prefData);
+        if (parsed.images) setImages(parsed.images);
+        if (parsed.step !== undefined) setStep(parsed.step);
+        if (parsed.showPreferences !== undefined) setShowPreferences(parsed.showPreferences);
+        setHasDraft(false);
+      } catch (err) {
+        console.error("Error loading draft", err);
+      }
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('nikah_profile_draft');
+    setHasDraft(false);
+  };
+
+  const handleSaveDraft = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    setSaveStatus('saving');
+    const draftData = {
+      formData,
+      prefData,
+      images,
+      step,
+      showPreferences,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem('nikah_profile_draft', JSON.stringify(draftData));
+    setTimeout(() => {
+      setSaveStatus('saved');
+      setTimeout(() => {
+        setSaveStatus('idle');
+      }, 2000);
+    }, 400);
+  };
 
   const uploadedCount = images.filter(img => img !== null).length;
 
@@ -181,26 +283,143 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
       image: images.find(img => img !== null) || '',
       images: images.filter(img => img !== null)
     };
+    // Clear draft storage upon successful completion
+    localStorage.removeItem('nikah_profile_draft');
     onComplete(finalFormData, prefData);
   };
 
   if (step === 0) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in py-12 px-4">
-        <h2 className="serif-heading text-4xl md:text-5xl text-[#064e3b] mb-12 text-center font-bold">Who are you?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-4xl">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in py-12 px-4 max-w-5xl mx-auto w-full">
+        {hasDraft && (
+          <div className="mb-10 w-full max-w-3xl p-5 md:p-6 bg-[#fdfbf7] border border-[#c5a059]/40 rounded-3xl shadow-lg animate-fade-in flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-start gap-3 text-center sm:text-left">
+              <span className="text-2xl text-[#c5a059] shrink-0">۞</span>
+              <div>
+                <h4 className="font-black text-[#064e3b] text-xs md:text-sm uppercase tracking-wider">Incomplete Draft Found</h4>
+                <p className="text-[11px] text-[#3d5a45]/70 mt-1">You have an unfinished registration draft saved in this browser.</p>
+              </div>
+            </div>
+            <div className="flex gap-2.5 w-full sm:w-auto">
+              <button 
+                type="button" 
+                onClick={handleDiscardDraft} 
+                className="flex-1 sm:flex-none py-2 px-4 border border-red-200 hover:bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+              >
+                Discard
+              </button>
+              <button 
+                type="button" 
+                onClick={handleResumeDraft} 
+                className="flex-1 sm:flex-none py-2 px-5 bg-[#064e3b] hover:bg-[#043327] text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md"
+              >
+                Resume Draft
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="text-center max-w-xl mb-12">
+          <span className="text-[#c5a059] text-3xl block mb-3">۞</span>
+          <h2 className="serif-heading text-4xl md:text-5xl text-[#064e3b] font-bold tracking-tight mb-4">
+            Who are you?
+          </h2>
+          <p className="text-[#3d5a45]/70 text-xs md:text-sm uppercase tracking-[0.25em] font-black">
+            Choose your path to begin finding sincere matches
+          </p>
+        </div>
+
+        {/* Google Authentication Section */}
+        {currentUser && !currentUser.isAnonymous ? (
+          <div className="mb-10 w-full max-w-md p-4 bg-[#fdfbf7] border border-[#c5a059]/40 rounded-2xl shadow-md flex items-center justify-between gap-4 animate-fade-in mx-auto">
+            <div className="flex items-center gap-3">
+              <img 
+                src={currentUser.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150"} 
+                alt="Google Avatar" 
+                className="w-10 h-10 rounded-full border border-[#c5a059]/30"
+                referrerPolicy="no-referrer"
+              />
+              <div className="text-left">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#c5a059] block">✦ Connected with Google ✦</span>
+                <span className="text-xs font-black text-[#064e3b] block truncate max-w-[200px]">{currentUser.displayName || currentUser.email}</span>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              onClick={handleSignOut}
+              className="py-1.5 px-3 border border-[#c5a059]/40 hover:bg-[#c5a059]/5 text-[#c5a059] hover:text-[#064e3b] rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <div className="mb-10 w-full max-w-sm text-center mx-auto">
+            <button 
+              type="button" 
+              onClick={handleGoogleSignIn}
+              disabled={authLoading}
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-white hover:bg-[#064e3b]/5 text-[#064e3b] border-2 border-[#c5a059]/40 hover:border-[#c5a059] rounded-2xl text-xs font-black uppercase tracking-[0.15em] transition-all duration-300 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              {authLoading ? (
+                <span className="animate-pulse">Connecting to Google...</span>
+              ) : (
+                <>
+                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                     <path
+                       fill="#4285F4"
+                       d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 01-2.45 3.71v3.08h3.95c2.31-2.13 3.63-5.27 3.63-8.64z"
+                     />
+                     <path
+                       fill="#34A853"
+                       d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.95-3.08c-1.1.74-2.5 1.18-3.98 1.18-3.07 0-5.67-2.08-6.6-4.88H1.47v3.18C3.45 21.36 7.42 24 12 24z"
+                     />
+                     <path
+                       fill="#FBBC05"
+                       d="M5.4 14.31a7.19 7.19 0 010-4.62V6.51H1.47a11.97 11.97 0 000 10.98l3.93-3.18z"
+                     />
+                     <path
+                       fill="#EA4335"
+                       d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.93 1.19 15.24 0 12 0 7.42 0 3.45 2.64 1.47 6.51l3.93 3.18c.93-2.8 3.53-4.88 6.6-4.89z"
+                     />
+                  </svg>
+                  <span>Continue with Google</span>
+                </>
+              )}
+            </button>
+            {authError && (
+              <p className="text-red-500 text-[10px] uppercase font-bold tracking-wider mt-2.5 animate-pulse">
+                ⚠ {authError}
+              </p>
+            )}
+            <div className="flex items-center gap-3 my-6">
+              <div className="h-[1px] flex-1 bg-[#c5a059]/20"></div>
+              <span className="text-[10px] font-black uppercase text-[#3d5a45]/40 tracking-widest">or choose identity</span>
+              <div className="h-[1px] flex-1 bg-[#c5a059]/20"></div>
+            </div>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 w-full max-w-3xl">
+          {/* Male Selection Card */}
           <SelectionCard 
             title="Male" 
-            image="https://images.unsplash.com/photo-1620573994323-5e921d18728d?q=80&w=1974&auto=format&fit=crop"
+            image={maleImage}
             onClick={() => handleIdentitySelect('male')}
           />
+
+          {/* Female Selection Card */}
           <SelectionCard 
             title="Female" 
-            image="https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?q=80&w=1974&auto=format&fit=crop"
+            image={femaleImage}
             onClick={() => handleIdentitySelect('female')}
           />
         </div>
-        <p className="mt-16 text-[#3d5a45]/60 amiri-font text-xl italic text-center">“Dignity, faith, and sincerity begin with a clear intention.”</p>
+
+        <div className="mt-16 text-center max-w-lg">
+          <div className="w-16 h-px bg-[#c5a059]/30 mx-auto mb-6"></div>
+          <p className="text-[#3d5a45]/60 amiri-font text-xl md:text-2xl italic leading-relaxed">
+            “Dignity, faith, and sincerity begin with a clear intention.”
+          </p>
+        </div>
       </div>
     );
   }
@@ -279,7 +498,28 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
                 </div>
               </div>
             </div>
-            <button type="button" onClick={() => setStep(2)} className="w-full py-5 md:py-6 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-[0.2em] shadow-xl hover:bg-[#043327] transition-all text-sm md:text-base">Continue to Faith & Practice</button>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button 
+                type="button" 
+                onClick={handleSaveDraft}
+                className="w-full sm:flex-1 py-4 md:py-5 border-2 border-dashed border-[#c5a059] text-[#c5a059] rounded-full font-black uppercase tracking-widest hover:bg-[#c5a059]/5 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+              >
+                {saveStatus === 'saving' ? (
+                  <span className="animate-pulse">Saving Draft...</span>
+                ) : saveStatus === 'saved' ? (
+                  <span className="text-[#064e3b]">✓ Saved Draft</span>
+                ) : (
+                  <span>Save Draft</span>
+                )}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setStep(2)} 
+                className="w-full sm:flex-[2] py-4 md:py-5 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-[#043327] transition-all text-sm flex items-center justify-center gap-2"
+              >
+                Continue to Faith & Practice
+              </button>
+            </div>
           </div>
         )}
 
@@ -344,9 +584,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col md:flex-row gap-4 pt-4">
-              <button type="button" onClick={() => setStep(1)} className="w-full md:flex-1 py-4 md:py-5 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
-              <button type="button" onClick={() => setStep(3)} className="w-full md:flex-[2] py-4 md:py-5 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-[#043327] transition-all text-xs md:text-sm">Continue to Family & Work</button>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button type="button" onClick={() => setStep(1)} className="w-full sm:flex-1 py-4 md:py-5 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
+              <button 
+                type="button" 
+                onClick={handleSaveDraft}
+                className="w-full sm:flex-1 py-4 md:py-5 border-2 border-dashed border-[#c5a059] text-[#c5a059] rounded-full font-black uppercase tracking-widest hover:bg-[#c5a059]/5 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+              >
+                {saveStatus === 'saving' ? (
+                  <span className="animate-pulse">Saving Draft...</span>
+                ) : saveStatus === 'saved' ? (
+                  <span className="text-[#064e3b]">✓ Saved Draft</span>
+                ) : (
+                  <span>Save Draft</span>
+                )}
+              </button>
+              <button type="button" onClick={() => setStep(3)} className="w-full sm:flex-[2] py-4 md:py-5 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-[#043327] transition-all text-xs md:text-sm">Continue to Family & Work</button>
             </div>
           </div>
         )}
@@ -412,9 +665,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col md:flex-row gap-4 pt-4">
-              <button type="button" onClick={() => setStep(2)} className="w-full md:flex-1 py-4 md:py-5 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
-              <button type="button" onClick={() => setStep(4)} className="w-full md:flex-[2] py-4 md:py-5 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-[#043327] transition-all text-xs md:text-sm">Continue to Preferences</button>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button type="button" onClick={() => setStep(2)} className="w-full sm:flex-1 py-4 md:py-5 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
+              <button 
+                type="button" 
+                onClick={handleSaveDraft}
+                className="w-full sm:flex-1 py-4 md:py-5 border-2 border-dashed border-[#c5a059] text-[#c5a059] rounded-full font-black uppercase tracking-widest hover:bg-[#c5a059]/5 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+              >
+                {saveStatus === 'saving' ? (
+                  <span className="animate-pulse">Saving Draft...</span>
+                ) : saveStatus === 'saved' ? (
+                  <span className="text-[#064e3b]">✓ Saved Draft</span>
+                ) : (
+                  <span>Save Draft</span>
+                )}
+              </button>
+              <button type="button" onClick={() => setStep(4)} className="w-full sm:flex-[2] py-4 md:py-5 bg-[#064e3b] text-white rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-[#043327] transition-all text-xs md:text-sm">Continue to Preferences</button>
             </div>
           </div>
         )}
@@ -733,12 +999,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
               </div>
 
               {!showPreferences && (
-                <div className="flex flex-col md:flex-row gap-4 pt-10">
-                  <button type="button" onClick={() => setStep(3)} className="w-full md:flex-1 py-4 md:py-6 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
+                <div className="flex flex-col sm:flex-row gap-4 pt-10">
+                  <button type="button" onClick={() => setStep(3)} className="w-full sm:flex-1 py-4 md:py-6 border-2 border-[#064e3b] text-[#064e3b] rounded-full font-black uppercase tracking-widest hover:bg-[#064e3b]/5 transition-all text-xs md:text-sm">Back</button>
+                  <button 
+                    type="button" 
+                    onClick={handleSaveDraft}
+                    className="w-full sm:flex-1 py-4 md:py-6 border-2 border-dashed border-[#c5a059] text-[#c5a059] rounded-full font-black uppercase tracking-widest hover:bg-[#c5a059]/5 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+                  >
+                    {saveStatus === 'saving' ? (
+                      <span className="animate-pulse">Saving Draft...</span>
+                    ) : saveStatus === 'saved' ? (
+                      <span className="text-[#064e3b]">✓ Saved Draft</span>
+                    ) : (
+                      <span>Save Draft</span>
+                    )}
+                  </button>
                   <button 
                     type="submit" 
                     disabled={uploadedCount < 3}
-                    className={`w-full md:flex-[3] py-4 md:py-6 rounded-full font-black uppercase tracking-[0.15em] md:tracking-[0.3em] shadow-2xl transition-all transform active:scale-95 text-xs md:text-sm ${uploadedCount >= 3 ? 'bg-[#064e3b] text-[#fdfbf7] hover:bg-[#043327] hover:scale-[1.02] cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-80'}`}
+                    className={`w-full sm:flex-[2.5] py-4 md:py-6 rounded-full font-black uppercase tracking-[0.15em] md:tracking-[0.3em] shadow-2xl transition-all transform active:scale-95 text-xs md:text-sm ${uploadedCount >= 3 ? 'bg-[#064e3b] text-[#fdfbf7] hover:bg-[#043327] hover:scale-[1.02] cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-80'}`}
                   >
                     {uploadedCount >= 3 ? 'Complete My Amanah Profile' : `Add ${3 - uploadedCount} more photo${uploadedCount === 2 ? '' : 's'} to finish`}
                   </button>
