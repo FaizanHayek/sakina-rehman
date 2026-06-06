@@ -125,13 +125,9 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Landing video properties
-  const [videoUrl, setVideoUrl] = useState('https://www.youtube.com/watch?v=UrS_U6bMclQ');
+  // Landing video properties (permanently configured URL)
+  const videoUrl = 'https://www.youtube.com/watch?v=KNdylon2ljs';
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isEditingVideo, setIsEditingVideo] = useState(false);
-  const [tempVideoUrl, setTempVideoUrl] = useState('https://www.youtube.com/watch?v=UrS_U6bMclQ');
-  const [isVideoSaving, setIsVideoSaving] = useState(false);
-  const [videoError, setVideoError] = useState<string | null>(null);
 
   // Test Connection
   useEffect(() => {
@@ -147,22 +143,7 @@ const App: React.FC = () => {
     testConnection();
   }, []);
 
-  // Listen to Video URL from Firestore settings/video
-  useEffect(() => {
-    const videoRef = doc(db, 'settings', 'video');
-    const unsubscribe = onSnapshot(videoRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && data.url) {
-          setVideoUrl(data.url);
-          setTempVideoUrl(data.url);
-        }
-      }
-    }, (error) => {
-      console.warn("Could not load real-time video URL:", error);
-    });
-    return () => unsubscribe();
-  }, []);
+  // Video URL is permanently configured to play the official process video.
 
   // One-time migration of mock data
   useEffect(() => {
@@ -735,78 +716,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Editable Video URL option below the Video Container */}
-            <div className="w-full flex flex-col items-center">
-              {isEditingVideo ? (
-                <div className="w-full bg-[#fdfbf7] p-6 rounded-3xl border border-[#c5a059]/30 shadow-md max-w-lg animate-fade-in space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-[#e8e2d6]">
-                    <h4 className="text-sm font-bold text-[#064e3b] uppercase tracking-wider">Configure Process Video</h4>
-                    <button onClick={() => { setIsEditingVideo(false); setVideoError(null); }} className="text-[#3d5a45]/50 hover:text-red-500 text-xs font-black">✕ Close</button>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-[#3d5a45] uppercase tracking-widest text-left w-full">Video URL / YouTube Link</label>
-                    <input 
-                      type="text" 
-                      value={tempVideoUrl} 
-                      onChange={(e) => setTempVideoUrl(e.target.value)} 
-                      placeholder="e.g. https://www.youtube.com/watch?v=..." 
-                      className="w-full bg-white border border-[#e8e2d6] p-3 rounded-xl text-xs focus:ring-2 focus:ring-[#c5a059] focus:outline-none"
-                    />
-                    {videoError && <span className="text-[10px] font-black text-red-500 uppercase text-left block">{videoError}</span>}
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={async () => {
-                        if (!tempVideoUrl.trim()) {
-                          setVideoError("Please provide a valid URL");
-                          return;
-                        }
-                        setVideoError(null);
-                        setIsVideoSaving(true);
-                        try {
-                          await setDoc(doc(db, 'settings', 'video'), {
-                            url: tempVideoUrl.trim(),
-                            updatedAt: Timestamp.now()
-                          });
-                          setVideoUrl(tempVideoUrl.trim());
-                          setIsPlaying(true); // Auto play the newly configured video
-                          setIsEditingVideo(false);
-                        } catch (err) {
-                          console.error(err);
-                          setVideoError("Failed to save settings to Firestore.");
-                        } finally {
-                          setIsVideoSaving(false);
-                        }
-                      }} 
-                      disabled={isVideoSaving}
-                      className="flex-grow py-3 bg-[#c5a059] hover:bg-[#b08e4d] text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:opacity-50"
-                    >
-                      {isVideoSaving ? "Saving..." : "Save Link"}
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setTempVideoUrl(videoUrl);
-                        setIsEditingVideo(false);
-                        setVideoError(null);
-                      }} 
-                      className="py-3 px-4 bg-white border border-[#e8e2d6] text-[#3d5a45] rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:bg-red-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <p className="text-[9px] text-[#3d5a45]/50 italic text-center leading-relaxed">
-                    Supports any standard YouTube watch link, short link, embed link, video file (.mp4, .webm, .ogg), or general webpage iframe source.
-                  </p>
-                </div>
-              ) : (
-                <button 
-                  onClick={() => setIsEditingVideo(true)}
-                  className="flex items-center gap-2 py-2.5 px-5 bg-white/75 hover:bg-white border border-[#e8e2d6] text-[#c5a059] rounded-full text-[10px] font-black uppercase tracking-[0.1em] transition-all active:scale-95 shadow-md hover:border-[#c5a059]/40"
-                >
-                  <span>⚙️</span> Change Process Video URL
-                </button>
-              )}
-            </div>
+            {/* The Process Video is permanently set */}
           </div>
 
         </div>
