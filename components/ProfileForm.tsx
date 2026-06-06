@@ -81,6 +81,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showDomainTroubleshooting, setShowDomainTroubleshooting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -92,6 +93,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     setAuthError(null);
+    setShowDomainTroubleshooting(false);
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
@@ -99,7 +101,20 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
     } catch (err: any) {
       console.error("Google sign-in error", err);
       if (err.code !== 'auth/popup-closed-by-user') {
-        setAuthError(err.message || "Failed to sign in with Google.");
+        const errMsg = err.message || "Failed to sign in with Google.";
+        const errCode = err.code || "";
+        setAuthError(errMsg);
+        
+        const errStr = (errCode + " " + errMsg).toLowerCase();
+        if (
+          errStr.includes("unauthorized-domain") ||
+          errStr.includes("unauthorized domain") ||
+          errStr.includes("host-not-allowed") ||
+          errStr.includes("not authorized") ||
+          errStr.includes("authorized-domains")
+        ) {
+          setShowDomainTroubleshooting(true);
+        }
       }
     } finally {
       setAuthLoading(false);
@@ -389,6 +404,42 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onComplete }) => {
               <p className="text-red-500 text-[10px] uppercase font-bold tracking-wider mt-2.5 animate-pulse">
                 ⚠ {authError}
               </p>
+            )}
+            {showDomainTroubleshooting && (
+              <div className="mt-4 p-5 bg-[#fffbeb] border border-amber-200 rounded-2xl text-left shadow-sm animate-fade-in max-w-sm mx-auto">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-amber-500 text-lg leading-none shrink-0 font-bold">⚠️</span>
+                  <div>
+                    <h5 className="font-bold text-amber-900 text-xs uppercase tracking-wider">Authorize Domain in Firebase</h5>
+                    <p className="text-[10px] text-amber-800/80 mt-1 leading-relaxed">
+                      Google OAuth requires this application's domain to be added to Authorized Domains in your Firebase settings dashboard.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mt-4 space-y-2">
+                  <div className="bg-amber-100/50 p-2.5 rounded-xl border border-amber-200/50">
+                    <span className="text-[8px] font-black text-amber-900/60 uppercase tracking-widest block">Domain to authorize:</span>
+                    <code className="text-xs font-mono font-bold select-all break-all text-amber-950 block bg-white/60 p-1.5 rounded mt-1 border border-amber-200/30">
+                      {window.location.hostname}
+                    </code>
+                  </div>
+
+                  <a 
+                    href="https://console.firebase.google.com/project/gen-lang-client-0633877546/authentication/settings"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full mt-2.5 py-3 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Go to Firebase Console</span>
+                    <span>→</span>
+                  </a>
+                </div>
+                
+                <p className="text-[9px] text-amber-800/60 italic mt-3 text-center leading-relaxed">
+                  Go to <span className="font-bold">Authentication &gt; Settings &gt; Authorized domains</span> and paste the domain highlighted above.
+                </p>
+              </div>
             )}
             <div className="flex items-center gap-3 my-6">
               <div className="h-[1px] flex-1 bg-[#c5a059]/20"></div>

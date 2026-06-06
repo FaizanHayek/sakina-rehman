@@ -72,6 +72,29 @@ type ViewState = 'landing' | 'register' | 'browse' | 'favorites' | 'profile';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('landing');
+  const [viewHistory, setViewHistory] = useState<ViewState[]>([]);
+
+  useEffect(() => {
+    setViewHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1] === view) {
+        return prev;
+      }
+      return [...prev, view];
+    });
+  }, [view]);
+
+  const handleGoBack = () => {
+    if (viewHistory.length > 1) {
+      const newHistory = [...viewHistory];
+      newHistory.pop(); // remove current view
+      const previousView = newHistory[newHistory.length - 1];
+      if (previousView) {
+        setViewHistory(newHistory.slice(0, -1));
+        setView(previousView);
+      }
+    }
+  };
+
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -1036,6 +1059,21 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Persistent global go-back navigation controller, accessible from any page */}
+      {viewHistory.length > 1 && (
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="fixed bottom-8 left-8 z-[75] bg-[#edf2ee]/95 backdrop-blur-md hover:bg-[#064e3b] text-[#064e3b] hover:text-white border-2 border-[#c5a059]/40 hover:border-[#064e3b] shadow-xl hover:shadow-[#c5a059]/20 rounded-full py-3.5 px-6 flex items-center justify-center gap-2.5 text-[11px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 cursor-pointer"
+          id="global-back-nav"
+        >
+          <svg className="w-4 h-4 shrink-0 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>Go Back</span>
+        </button>
+      )}
     </div>
   );
 };
